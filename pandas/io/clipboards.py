@@ -26,44 +26,31 @@ def read_clipboard(
     **kwargs,
 ):  # pragma: no cover
     r"""
-    Read text from clipboard and pass to :func:`~pandas.read_csv`.
-
-    Parses clipboard contents similar to how CSV files are parsed
-    using :func:`~pandas.read_csv`.
+    Read text from clipboard and pass to read_csv.
 
     Parameters
     ----------
     sep : str, default '\\s+'
-        A string or regex delimiter. The default of ``'\\s+'`` denotes
+        A string or regex delimiter. The default of '\\s+' denotes
         one or more whitespace characters.
 
     dtype_backend : {"numpy_nullable", "pyarrow"}, defaults to NumPy backed DataFrames
-        Which dtype_backend to use, e.g., whether a DataFrame should have NumPy
+        Which dtype_backend to use, e.g. whether a DataFrame should have NumPy
         arrays, nullable dtypes are used for all dtypes that have a nullable
-        implementation when ``'numpy_nullable'`` is set, pyarrow is used for all
-        dtypes if ``'pyarrow'`` is set.
+        implementation when "numpy_nullable" is set, pyarrow is used for all
+        dtypes if "pyarrow" is set.
 
-        The dtype_backends are still experimental.
+        The dtype_backends are still experimential.
 
         .. versionadded:: 2.0
 
     **kwargs
-        See :func:`~pandas.read_csv` for the full argument list.
+        See read_csv for the full argument list.
 
     Returns
     -------
     DataFrame
-        A parsed :class:`~pandas.DataFrame` object.
-
-    See Also
-    --------
-    DataFrame.to_clipboard : Copy object to the system clipboard.
-    read_csv : Read a comma-separated values (csv) file into DataFrame.
-    read_fwf : Read a table of fixed-width formatted lines into DataFrame.
-
-    Examples
-    --------
-    >>> pd.read_clipboard()  # doctest: +SKIP
+        A parsed DataFrame object.
     """
     encoding = kwargs.pop("encoding", "utf-8")
 
