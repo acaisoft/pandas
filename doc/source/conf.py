@@ -237,14 +237,14 @@ elif "rc" in version:
 
 html_theme_options = {
     "external_links": [],
-    "footer_start": ["pandas_footer", "sphinx-version"],
+    "footer_items": ["pandas_footer", "sphinx-version"],
     "github_url": "https://github.com/pandas-dev/pandas",
     "twitter_url": "https://twitter.com/pandas_dev",
-    "analytics": {"google_analytics_id": "UA-27880019-2"},
+    "google_analytics_id": "UA-27880019-2",
     "logo": {"image_dark": "https://pandas.pydata.org/static/img/pandas_white.svg"},
     "navbar_end": ["version-switcher", "theme-switcher", "navbar-icon-links"],
     "switcher": {
-        "json_url": "https://pandas.pydata.org/versions.json",
+        "json_url": "/versions.json",
         "version_match": switcher_version,
     },
     "icon_links": [
