@@ -43,6 +43,7 @@ from pandas import (
     to_datetime,
     to_timedelta,
 )
+from pandas.core import nanops
 import pandas.core.algorithms as algos
 
 if TYPE_CHECKING:
@@ -242,18 +243,43 @@ def cut(
     # NOTE: this binning code is changed a bit from histogram for var(x) == 0
 
     original = x
-    x_idx = _preprocess_for_cut(x)
-    x_idx, dtype = _coerce_to_type(x_idx)
+    x = _preprocess_for_cut(x)
+    x, dtype = _coerce_to_type(x)
 
     if not np.iterable(bins):
-        bins = _nbins_to_bins(x_idx, bins, right)
+        if is_scalar(bins) and bins < 1:
+            raise ValueError("`bins` should be a positive integer.")
+
+        sz = x.size
+
+        if sz == 0:
+            raise ValueError("Cannot cut empty array")
+
+        rng = (nanops.nanmin(x), nanops.nanmax(x))
+        mn, mx = (mi + 0.0 for mi in rng)
+
+        if np.isinf(mn) or np.isinf(mx):
+            # GH 24314
+            raise ValueError(
+                "cannot specify integer `bins` when input data contains infinity"
+            )
+        if mn == mx:  # adjust end points before binning
+            mn -= 0.001 * abs(mn) if mn != 0 else 0.001
+            mx += 0.001 * abs(mx) if mx != 0 else 0.001
+            bins = np.linspace(mn, mx, bins + 1, endpoint=True)
+        else:  # adjust end points after binning
+            bins = np.linspace(mn, mx, bins + 1, endpoint=True)
+            adj = (mx - mn) * 0.001  # 0.1% of the range
+            if right:
+                bins[0] -= adj
+            else:
+                bins[-1] += adj
 
     elif isinstance(bins, IntervalIndex):
         if bins.is_overlapping:
             raise ValueError("Overlapping IntervalIndex is not accepted.")
 
     else:
-        bins = Index(bins)
         if isinstance(getattr(bins, "dtype", None), DatetimeTZDtype):
             bins = np.asarray(bins, dtype=DT64NS_DTYPE)
         else:
@@ -263,10 +289,9 @@ def cut(
         # GH 26045: cast to float64 to avoid an overflow
         if (np.diff(bins.astype("float64")) < 0).any():
             raise ValueError("bins must increase monotonically.")
-        bins = Index(bins)
 
     fac, bins = _bins_to_cuts(
-        x_idx,
+        x,
         bins,
         right=right,
         labels=labels,
@@ -342,18 +367,18 @@ def qcut(
     array([0, 0, 1, 2, 3])
     """
     original = x
-    x_idx = _preprocess_for_cut(x)
-    x_idx, dtype = _coerce_to_type(x_idx)
+    x = _preprocess_for_cut(x)
+    x, dtype = _coerce_to_type(x)
 
     quantiles = np.linspace(0, 1, q + 1) if is_integer(q) else q
 
-    x_np = np.asarray(x_idx)
+    x_np = np.asarray(x)
     x_np = x_np[~np.isnan(x_np)]
     bins = np.quantile(x_np, quantiles)
 
     fac, bins = _bins_to_cuts(
-        x_idx,
-        Index(bins),
+        x,
+        bins,
         labels=labels,
         precision=precision,
         include_lowest=True,
@@ -364,44 +389,9 @@ def qcut(
     return _postprocess_for_cut(fac, bins, retbins, dtype, original)
 
 
-def _nbins_to_bins(x_idx: Index, nbins: int, right: bool) -> Index:
-    """
-    If a user passed an integer N for bins, convert this to a sequence of N
-    equal(ish)-sized bins.
-    """
-    if is_scalar(nbins) and nbins < 1:
-        raise ValueError("`bins` should be a positive integer.")
-
-    if x_idx.size == 0:
-        raise ValueError("Cannot cut empty array")
-
-    rng = (x_idx.min(), x_idx.max())
-    mn, mx = rng
-
-    if np.isinf(mn) or np.isinf(mx):
-        # GH#24314
-        raise ValueError(
-            "cannot specify integer `bins` when input data contains infinity"
-        )
-
-    if mn == mx:  # adjust end points before binning
-        mn -= 0.001 * abs(mn) if mn != 0 else 0.001
-        mx += 0.001 * abs(mx) if mx != 0 else 0.001
-        bins = np.linspace(mn, mx, nbins + 1, endpoint=True)
-    else:  # adjust end points after binning
-        bins = np.linspace(mn, mx, nbins + 1, endpoint=True)
-        adj = (mx - mn) * 0.001  # 0.1% of the range
-        if right:
-            bins[0] -= adj
-        else:
-            bins[-1] += adj
-
-    return Index(bins)
-
-
 def _bins_to_cuts(
-    x: Index,
-    bins: Index,
+    x,
+    bins: np.ndarray,
     right: bool = True,
     labels=None,
     precision: int = 3,
@@ -417,8 +407,6 @@ def _bins_to_cuts(
         raise ValueError(
             "invalid value for 'duplicates' parameter, valid options are: raise, drop"
         )
-
-    result: Categorical | np.ndarray
 
     if isinstance(bins, IntervalIndex):
         # we have a fast-path here
@@ -486,7 +474,7 @@ def _bins_to_cuts(
     return result, bins
 
 
-def _coerce_to_type(x: Index) -> tuple[Index, DtypeObj | None]:
+def _coerce_to_type(x):
     """
     if the passed data is of datetime/timedelta, bool or nullable int type,
     this method converts it to numeric so that cut or qcut method can
@@ -510,13 +498,11 @@ def _coerce_to_type(x: Index) -> tuple[Index, DtypeObj | None]:
     # https://github.com/pandas-dev/pandas/pull/31290
     # https://github.com/pandas-dev/pandas/issues/31389
     elif isinstance(x.dtype, ExtensionDtype) and is_numeric_dtype(x.dtype):
-        x_arr = x.to_numpy(dtype=np.float64, na_value=np.nan)
-        x = Index(x_arr)
+        x = x.to_numpy(dtype=np.float64, na_value=np.nan)
 
     if dtype is not None:
         # GH 19768: force NaT to NaN during integer conversion
-        x_arr = np.where(x.notna(), x.view(np.int64), np.nan)
-        x = Index(x_arr)
+        x = np.where(x.notna(), x.view(np.int64), np.nan)
 
     return x, dtype
 
@@ -578,7 +564,7 @@ def _convert_bin_to_datelike_type(bins, dtype: DtypeObj | None):
 
 
 def _format_labels(
-    bins: Index,
+    bins,
     precision: int,
     right: bool = True,
     include_lowest: bool = False,
@@ -611,7 +597,7 @@ def _format_labels(
     return IntervalIndex.from_breaks(breaks, closed=closed)
 
 
-def _preprocess_for_cut(x) -> Index:
+def _preprocess_for_cut(x):
     """
     handles preprocessing for cut where we convert passed
     input to array, strip the index information and store it
@@ -625,7 +611,7 @@ def _preprocess_for_cut(x) -> Index:
     if x.ndim != 1:
         raise ValueError("Input array must be 1 dimensional")
 
-    return Index(x)
+    return x
 
 
 def _postprocess_for_cut(fac, bins, retbins: bool, dtype: DtypeObj | None, original):
@@ -641,8 +627,6 @@ def _postprocess_for_cut(fac, bins, retbins: bool, dtype: DtypeObj | None, origi
         return fac
 
     bins = _convert_bin_to_datelike_type(bins, dtype)
-    if isinstance(bins, Index) and is_numeric_dtype(bins.dtype):
-        bins = bins._values
 
     return fac, bins
 
@@ -662,7 +646,7 @@ def _round_frac(x, precision: int):
         return np.around(x, digits)
 
 
-def _infer_precision(base_precision: int, bins: Index) -> int:
+def _infer_precision(base_precision: int, bins) -> int:
     """
     Infer an appropriate precision for _round_frac
     """
