@@ -240,10 +240,7 @@ html_theme_options = {
     "footer_start": ["pandas_footer", "sphinx-version"],
     "github_url": "https://github.com/pandas-dev/pandas",
     "twitter_url": "https://twitter.com/pandas_dev",
-    "analytics": {
-        "plausible_analytics_domain": "pandas.pydata.org",
-        "plausible_analytics_url": "https://views.scientific-python.org/js/script.js",
-    },
+    "analytics": {"google_analytics_id": "G-5RE31C1RNW"},
     "logo": {"image_dark": "https://pandas.pydata.org/static/img/pandas_white.svg"},
     "navbar_end": ["version-switcher", "theme-switcher", "navbar-icon-links"],
     "switcher": {
