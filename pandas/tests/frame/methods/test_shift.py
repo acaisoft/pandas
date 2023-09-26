@@ -692,7 +692,7 @@ class TestDataFrameShift:
         shifts = [0, 1, 2]
 
         df = DataFrame(data)
-        s = df["a"]
+        s: Series = df["a"]
         tm.assert_frame_equal(s.shift(shifts), df.shift(shifts))
 
     def test_shift_with_iterable_freq_and_fill_value(self):
