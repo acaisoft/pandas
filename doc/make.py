@@ -123,14 +123,14 @@ class DocBuilder:
 
         Parameters
         ----------
-        kind : {'html', 'latex'}
+        kind : {'html', 'latex', 'linkcheck'}
 
         Examples
         --------
         >>> DocBuilder(num_jobs=4)._sphinx_build('html')
         """
-        if kind not in ("html", "latex"):
-            raise ValueError(f"kind must be html or latex, not {kind}")
+        if kind not in ("html", "latex", "linkcheck"):
+            raise ValueError(f"kind must be html, latex or linkcheck, not {kind}")
 
         cmd = ["sphinx-build", "-b", kind]
         if self.num_jobs:
@@ -267,6 +267,12 @@ class DocBuilder:
         Build PDF documentation with retries to find missing references.
         """
         return self.latex(force=True)
+
+    def linkcheck(self):
+        """
+        Check the links in the documentation for validity.
+        """
+        return self._sphinx_build("linkcheck")
 
     @staticmethod
     def clean():
